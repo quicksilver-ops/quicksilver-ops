@@ -2,6 +2,13 @@
 **Systems Architect & DeFi High-Frequency Trading Researcher**  
 *Specializing in Sub-Microsecond Rust Systems, In-RAM EVM State Execution, and Base L2 MEV Infrastructure.*
 
+[![Rust](https://img.shields.io/badge/Rust-1.80%2B-black?style=flat-square&logo=rust)](https://www.rust-lang.org)
+[![LTO](https://img.shields.io/badge/LTO-Fat%20Codegen--1-blue?style=flat-square)](https://github.com/quicksilver-ops)
+[![Test Suite](https://img.shields.io/badge/Tests-182%20Passed-success?style=flat-square)](https://github.com/quicksilver-ops)
+[![Target Network](https://img.shields.io/badge/Network-Base%20L2%20(8453)-0052FF?style=flat-square)](https://basescan.org)
+[![Signing Latency](https://img.shields.io/badge/ECDSA%20Sign-277%20ns-purple?style=flat-square)](https://github.com/quicksilver-ops)
+[![Codec Latency](https://img.shields.io/badge/Calldata%20Codec-0.40%20ns-green?style=flat-square)](https://github.com/quicksilver-ops)
+
 ---
 
 ## Executive Summary
@@ -15,7 +22,7 @@ I design and engineer institutional-grade, low-latency execution engines for dec
 ---
 
 ## Flagship Architecture: Project Quicksilver
-**Quicksilver** is a production-hardened Base L2 arbitrage and execution engine written in bare-metal Rust with Fat LTO compilation.
+**Quicksilver** is my production-hardened Base L2 arbitrage and execution engine written in bare-metal Rust with Fat LTO compilation.
 
 ```mermaid
 flowchart LR
@@ -43,7 +50,7 @@ All benchmarks measured on bare-metal execution targets with compiler optimizati
 
 ## Hardware Context & Latency Scaling Projection
 
-The benchmark numbers above demonstrate the software's pure algorithmic efficiency under resource-constrained development hardware:
+The benchmark numbers above demonstrate my software's pure algorithmic efficiency under resource-constrained development hardware:
 
 | Metric | Current Development Environment | Target Institutional Production Target |
 | :--- | :--- | :--- |
@@ -55,13 +62,13 @@ The benchmark numbers above demonstrate the software's pure algorithmic efficien
 | **EVM Simulation Loop** | **1.8 µs** (In-RAM stripped `revm`) | **< 800 ns** (HugePages L3 cache lock + isolated core affinity) |
 | **Packet Wire Egress** | ~1,500 µs (Standard OS IP stack) | **< 1.2 µs** (Kernel-bypass raw PCIe direct queue transmission) |
 
-> **Architectural Takeaway:** Because Quicksilver is written with zero heap allocations in the critical loop, memory throughput scales linearly with L1/L3 cache bandwidth. Deploying this codebase onto institutional dedicated bare metal (e.g. Equinix Ashburn / Frankfurt) unlocks true sub-microsecond end-to-end wire-to-wire execution.
+> **Architectural Takeaway:** Because I designed Quicksilver with zero heap allocations in the critical loop, memory throughput scales linearly with L1/L3 cache bandwidth. Deploying this codebase onto institutional dedicated bare metal (e.g. Equinix Ashburn / Frankfurt) unlocks true sub-microsecond end-to-end wire-to-wire execution.
 
 ---
 
 ## Active Research Frontier: Ring 0 & Kernel-Bypass Direct NIC Egress
 
-We are currently engineering the next frontier of physical execution: **bypassing the operating system kernel entirely and executing down to Ring 0 directly on the physical Network Interface Card (NIC)**.
+I am currently engineering the next frontier of physical execution: **bypassing the operating system kernel entirely and executing down to Ring 0 directly on the physical Network Interface Card (NIC)**.
 
 ```
 Traditional Bot Path:  User Code  ──>  OS Kernel Stack (sk_buff)  ──>  Driver  ──>  NIC Hardware  (Jitter: ~1.5 - 3.0 ms)
@@ -69,11 +76,24 @@ Quicksilver V2 Path:   Rust Core  ──>  Ring 0 / Solarflare EF_VI / DPDK  ─
 ```
 
 ### The Engineering Objective
-* **Direct PCIe DMA Injection:** Eliminating context switching, interrupt handlers, and Linux socket buffer queuing (`sk_buff`). Memory frames are mapped directly from CPU L3 cache into the network card's transmit ring buffers via Solarflare `ef_vi` and DPDK zero-copy drivers.
+* **Direct PCIe DMA Injection:** Eliminating context switching, interrupt handlers, and Linux socket buffer queuing (`sk_buff`). I map memory frames directly from CPU L3 cache into the network card's transmit ring buffers via Solarflare `ef_vi` and DPDK zero-copy drivers.
 * **Custom XDP / eBPF Kernel Hooks:** Evaluating incoming sequencer block packets at the device driver layer before the Linux kernel network stack even allocates packet metadata.
 * **AVX-512 Vectorized Sizing:** Computing simultaneous arbitrage paths across 16 liquidity pools in a single vector instruction cycle.
 
-> **Target Outcome:** Once Ring 0 direct-NIC DMA egress is paired with our 277ns signer and sub-2µs in-RAM EVM state simulation, this engine will operate at the absolute physical theoretical limit of silicon—delivering the **fastest deterministic decentralized execution pipeline on the planet.**
+> **Target Outcome:** Once I finalize Ring 0 direct-NIC DMA egress and integrate it with my 277ns signer and sub-2µs in-RAM EVM state simulation, this engine will operate at the absolute physical theoretical limit of silicon—delivering the **fastest deterministic decentralized execution pipeline on the planet.**
+
+---
+
+## Adversarial Invariants & Execution Risk Controls
+
+To ensure absolute capital preservation under high-volatility market regimes, I engineered strict multi-layer risk controls:
+
+| Risk Vector | Failure Mode | Enforced Invariant & Mitigation Strategy | Latency Overhead |
+| :--- | :--- | :--- | :--- |
+| **Adversarial Sandwiching** | Frontrunner shifts pool reserves before transaction inclusion | **Atomic Invariant Hurdle:** Verified contract enforces ending balance strictly exceeds initial balance + hurdle rate; reverts atomically otherwise (`revert InsufficientProfit()`). | **0 ns** (Off-chain pre-check) |
+| **L1 Blob Fee Spikes** | L1 rollup data cost exceeds gross L2 swap profit | **Dynamic GasPriceOracle Invariant:** Reads Base L2 fee scalar in RAM; automatically aborts if L1 blob fee exceeds 95% of gross profit. | **< 10 ns** |
+| **Sequencer Block Drift** | Bot executes against stale off-chain state | **Block Head Guard:** Automatically drops order dispatch if local shadow state drifts behind sequencer head by > 1 block. | **< 2 ns** |
+| **Cascading Reverts** | Consecutive transaction failures drain gas balance | **Assembly Circuit Breaker:** Zero-overhead branch trips an immutable software kill-switch upon 3 consecutive reverts. | **0.742 ns** |
 
 ---
 
@@ -81,13 +101,14 @@ Quicksilver V2 Path:   Rust Core  ──>  Ring 0 / Solarflare EF_VI / DPDK  ─
 The atomic execution contract for Quicksilver is compiled with strict adversarial protections (non-reentrant execution, balance sanity deltas, and atomic hurdle verification):
 * **Target Network:** Base L2 (Chain ID: `8453`)
 * **Contract Address:** [`0xeE6F09C6C2B525A2b5295c61DAA509BdE3D7167F`](https://basescan.org/address/0xeE6F09C6C2B525A2b5295c61DAA509BdE3D7167F)
+* **Deployment Tx:** [`0x9815df4c5cf28601d51a660a92021fcda3eeef6e04d6a6c22cb9b6fe6d1f03f3`](https://basescan.org/tx/0x9815df4c5cf28601d51a660a92021fcda3eeef6e04d6a6c22cb9b6fe6d1f03f3)
 * **Bytecode Footprint:** 7,879 bytes (Solidity / Yul assembly optimized)
 
 ---
 
 ## Proprietary Codebase Access & Institutional Inquiries
 To protect proprietary algorithmic alpha and execution strategies:
-* The core production execution daemons, dynamic routing graphs, and live strategies are maintained in a **Private Repository** (`quicksilver-engine`).
+* The core production execution daemons, dynamic routing graphs, and live strategies are maintained in my **Private Repository** (`quicksilver-engine`).
 * **Institutional Code Audits / Technical Walkthroughs:** Access to the private repository and full Criterion reproduction harnesses is available upon request to institutional trading firms, proprietary desks, and research leads.
 
 ### Contact
